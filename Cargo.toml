@@ -1,0 +1,19 @@
+[package]
+name = "bimgo"
+description = "Minimalist visual batch image processor"
+authors = ["François Laboureur"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+clap = { version = "3.0.10", features = ["derive"] }
+serde = { version = "1.0.135", features = ["derive"] }
+toml = "0.5.8"
+itertools = "0.10.3"
+dirs = "4.0.0"
+ 
+[dependencies.sdl2]
+version = "0.35.1"
+features = ["image"]
+
