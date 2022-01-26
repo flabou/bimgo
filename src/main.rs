@@ -1,8 +1,9 @@
-//! The goal of this program is batch image compression. While it
+//! The goal of this program is batch image processing, mainly for compression 
+//! but other types of processing are possible too. While it
 //! is possible to use simple terminal commands to compress images without it,
 //! the issue is that the terminal programs are blind, they simply process the
-//! compression but the user doesn't know whether the compression degraded the
-//! quality of the image or not.
+//! compression but the user doesn't know whether the compression has a positive 
+//! or negative impact on the quality of the image or not.
 //!
 //! The solution proposed here is a program which can be fed a list of image
 //! file names through stdin. These image will be compressed, and the
@@ -68,6 +69,8 @@
 //!     process next based on position.
 //!
 //! [x] possibility to undo or something
+//!
+//! [x] Add license
 //!
 //! [-] Shortcut to zoom on pictures and ability to move with the mouse (when on
 //!     top left corner, should zoom on top left, etc) or with keyboard shortcuts.
@@ -162,12 +165,39 @@
 //!     Instead of clearing the list, the user may simply decide to ignore it 
 //!     for one session with a flag such as --ignored-processed.
 //!
-//! [ ] Add license
+//! [ ] Change the behaviour so that, moving the images is only done at the end 
+//!     before exiting, and after a double confirmation, instead of doing it on 
+//!     the fly image after image. This seems safer as it does nothing until the 
+//!     user has explicitly given his confirmation.
+//!
+//! [ ] Delete the tmp images when the user leaves the application. Alternatively 
+//!     give the processed image an exhaustive name that includes the command used 
+//!     to process the image, and then on the next run, we don't need to process 
+//!     the image if it has already been processed (sort of cache)
+//!
+//! [ ] Implement some basic image processing in-app (e.g. compression), while 
+//!     this would break a little the spirit of doing only one thing, and 
+//!     relying on other applications for the rest, this would allow to use the 
+//!     GPU and possibly yield huge performance gains. Though this is very far 
+//!     down the road as my knowledge of GPU programming and image compression 
+//!     is currently non-existent.
+//!
+//! [ ] Instead of trying to implement some of the processing commands, it would
+//!     be interesting to look for command line image processing tools that work 
+//!     with the GPU. Possibly changing the current command configuration method 
+//!     to allow commands that already work in batch mode.
+//! 
+//! [ ] File in trash should be named based on folder location, using the "%" 
+//!     separator instead of "/" (?), there is a small possibility that this fails 
+//!     if filename already has % in itself (could maybe be fixed by adding an 
+//!     escaping % sign if there is already a percent in the original path name, 
+//!     as it is unlikely to have two slashes in the filename.)
 //!
 //! Other notes:
 //! This program is based on sdl2 image example.
 //! An example of usage would be :
 //! fd /directory/*.png | bimgo
+
 mod rect_utils;
 mod application;
 mod settings;
