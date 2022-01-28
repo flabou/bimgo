@@ -1,5 +1,5 @@
 # What is (will be) bimgo?
-NOTE: bimgo is still work in progress and has not yet been released. Although it has reached an almost usable state, I would advise to not use it right now. If you do decide to use it, backup the files you use it on (i.e. the files that you feed to bimgo through stdin). I am not obviously not responsible if you lose files while using this software.
+NOTE: bimgo is still work in progress and has not yet been released. Although it has reached an almost usable state, I would advise to not use it right now. If you do decide to use it, backup the files you use it on (i.e. the files that you feed to bimgo through stdin). I am obviously not responsible if you lose files while using this software.
 
 bimgo is a minimalist visual batch image processor. It is used in combination with two other tools :
 - Any image finder that will feed image to the stdin of bimgo. Any program can be used such as `fd` or simply `find`.
@@ -134,10 +134,10 @@ Original on the left, image processed with the command `magick %i -colorspace gr
 ![screenshot_1](https://user-images.githubusercontent.com/6578006/151229201-0e8dc36e-b0bd-4189-8334-e3cde6d39a2f.png)
 
 Original on the left, image reduced scaled down on the right. This demonstrate the compression use case, here we clearly see that there's too much compression.
-![screenshot_1](https://user-images.githubusercontent.com/6578006/151229201-0e8dc36e-b0bd-4189-8334-e3cde6d39a2f.png)
+![screenshot_2](https://user-images.githubusercontent.com/6578006/151229207-9ccc9493-1837-4a9c-bc6b-68e2fd19b269.png)
 
 If however it is not obvious (unlike here) we can zoom on the image to compare details.
-![screenshot_1](https://user-images.githubusercontent.com/6578006/151229201-0e8dc36e-b0bd-4189-8334-e3cde6d39a2f.png)
+![screenshot_3](https://user-images.githubusercontent.com/6578006/151229211-37632bf1-278f-46be-8794-325ea2796fc6.png)
 
 # Dependencies
 Here is the list of amazing libraries used by bimgo:
