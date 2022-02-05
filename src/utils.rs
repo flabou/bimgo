@@ -106,3 +106,40 @@ pub fn expand_tilde<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
     }).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Unable to expand home directory from '~'"))
 }
 
+
+
+fn rounded_div(dividend: u64, divisor: u64) -> u64 {
+    (dividend + divisor - 1) / divisor
+}
+
+
+/// Takes a size in bytes, and returns a string with appropriate format and unit
+///
+/// Format is similar to `ls -h` command. Except the value is rounded instead of 
+/// ceiled.
+pub fn human_readable_size(byte_size: u64) -> String {
+    const ONE_G: u64 = 1024 * 1024 * 1024;
+    const ONE_M: u64 = 1024 * 1024;
+    const ONE_K: u64 = 1024;
+
+    // Display in giga byte
+    let (size, unit) = if byte_size > ONE_G {
+        (rounded_div(byte_size*10, ONE_G), "G")
+    } else if byte_size > ONE_M {
+        (rounded_div(byte_size*10, ONE_M), "M")
+    } else if byte_size > ONE_K {
+        (rounded_div(byte_size*10, ONE_K), "K")
+    } else {
+        (byte_size, "")
+    };
+
+    let int = size / 10;
+    let dec = size - int * 10;
+
+    if int >= 10 {
+        format!("{int}{unit}")
+    } else {
+        format!("{int}.{dec}{unit}")
+    }
+}
+

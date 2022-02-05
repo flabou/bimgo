@@ -72,6 +72,11 @@
 //!
 //! [x] Add license
 //!
+//! [x] Nice border around the canvas that is kept to denote selection (e.g., 
+//!     selected image's canvas is reduced and centered, and a colored border is 
+//!     added. -> No reduction of image, simply a border around the selected 
+//!     image.
+//!
 //! [-] Shortcut to zoom on pictures and ability to move with the mouse (when on
 //!     top left corner, should zoom on top left, etc) or with keyboard shortcuts.
 //!     zoom on both pictures at the same time so we can compare the quality.
@@ -80,10 +85,6 @@
 //!     Keyboard shortcuts will move between compression commands. This makes it
 //!     easy to customize compression levels, rather than to try and guess
 //!     compression commands for the user.
-//!
-//! [-] Nice border around the canvas that is kept to denote selection (e.g., 
-//!     selected image's canvas is reduced and centered, and a colored border is 
-//!     added.
 //!
 //! [-] Between image switch, option to : fit width, fit height, fit whole image, 
 //!     fill screen (i.e. fit best?), keep zoom level, reset zoom level to 1.
@@ -193,6 +194,10 @@
 //!     escaping % sign if there is already a percent in the original path name, 
 //!     as it is unlikely to have two slashes in the filename.)
 //!
+//! [ ] Fix issue where views don't get updated properly after toggling fullscreen
+//!     because the windows parameter are not yet updated at the time of calling
+//!     update_views.
+//!
 //! Other notes:
 //! This program is based on sdl2 image example.
 //! An example of usage would be :
@@ -209,6 +214,7 @@ use std::path::PathBuf;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::image::InitFlag;
+use sdl2::pixels::Color;
 
 use itertools::Itertools;
 
@@ -229,6 +235,10 @@ fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let _image_context = sdl2::image::init(InitFlag::PNG | InitFlag::JPG)?;
+    let ttf_context = sdl2::ttf::init().map_err(|e| format!("{e}"))?;
+    
+    
+
 
     // Create a window.
     let window = video_subsystem
@@ -259,7 +269,7 @@ fn main() -> Result<(), String> {
     // Temporary list of img for testing. In final version this will come from 
     // stdin
     use utils::*;
-    let img_list_file = expand_tilde("~/rust_programs/bimgo/img_list")
+    let img_list_file = expand_tilde("~/bimgo/img_list")
         .expect("img_list file not found");
     let img_list: Vec<PathBuf> = 
         read_file_lines(&img_list_file)
@@ -267,7 +277,7 @@ fn main() -> Result<(), String> {
         .map(PathBuf::from)
         .collect();
 
-    let mut app = App::new(&mut canvas, &texture_creator, img_list)?;
+    let mut app = App::new(&mut canvas, &texture_creator, &ttf_context, img_list)?;
 
     'mainloop: loop {
         app.run()?;
@@ -326,6 +336,9 @@ fn main() -> Result<(), String> {
                     => app.toggle_fullscreen()?,
                     
                 Event::Window  {win_event: WindowEvent::SizeChanged(_, _), .. } 
+                    => app.update_views()?,
+
+                Event::KeyDown {keycode: Option::Some(Keycode::S), .. } 
                     => app.update_views()?,
 
                 Event::MouseMotion { x, y, .. }
