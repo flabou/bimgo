@@ -1,9 +1,10 @@
-//! Module with small helper functions
+//! Module with helper functions
 
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::os::linux::fs::MetadataExt;
 use std::io::{self, BufRead, BufReader};
+use std::process::Command;
 
 /// Helper function to move a file, wether it is on the same device  or not.
 /// 
@@ -61,6 +62,75 @@ pub fn move_file(src_file_path: &Path, dst_path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+
+/// Attempts to move src_1 to dst_1, then src_2 to dst_2.
+///
+/// If the move fails, the function fail, attempts to revert back to the state
+/// before the call. i.e. if it fails on the first move, nothing is done, if
+/// it fails on the second move, the function tries to move back dst_1 to src_1
+/// before exiting.
+pub fn attempt_double_move(
+    src_1: &Path,
+    dst_1: &Path,
+    src_2: &Path,
+    dst_2: &Path,
+) -> Result<(), String> {
+    move_file(src_1, dst_1).map_err(|e| format!("Unable to move file : {}", e))?;
+
+    // Move trash back to original
+    if let Err(e) = move_file(src_2, dst_2) {
+        println!(
+            "Unable to move {}, attempting to revert. Err: {}",
+            src_2.display(),
+            e
+        );
+        move_file(dst_1, src_1).map_err(|e| {
+            format!(
+                "Unable to revert move file {} back to {}. Err: {}",
+                dst_1.display(),
+                src_1.display(),
+                e
+            )
+        })?;
+    }
+
+Ok(())
+}
+
+
+/// Converts a Command instance to a String, as the command would be typed.
+pub fn command_to_string(command: &Command) -> String {
+    let mut cmd_string = String::new();
+    cmd_string += command.get_program().to_str().unwrap();
+    for a in command.get_args() {
+        cmd_string += " ";
+        cmd_string += a.to_str().unwrap();
+    }
+
+    cmd_string
+}
+
+
+/// Executes a &str as a command. Replacing %i with input_file and %o with
+/// output_file.
+pub fn execute_command_str(command: &str, input_file: &Path, output_file: &Path) {
+    let split = command.split(' ').collect::<Vec<&str>>();
+    if !split.is_empty() {
+        let mut cmd = Command::new(split[0]);
+        for item in split[1..].iter() {
+            if *item == "%i" {
+                cmd.arg(input_file);
+            } else if *item == "%o" {
+                cmd.arg(output_file);
+            } else {
+                cmd.arg(item);
+            }
+        }
+        cmd.status().expect("Failed to execute command");
+    }
+}
+
+
 pub fn read_file_lines(path: &Path) -> io::Result<Vec<String>> {
     let file = fs::File::open(path)?;
     let buf = BufReader::new(file);
@@ -105,7 +175,6 @@ pub fn expand_tilde<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
         }
     }).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Unable to expand home directory from '~'"))
 }
-
 
 
 fn rounded_div(dividend: u64, divisor: u64) -> u64 {

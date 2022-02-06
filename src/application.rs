@@ -1,13 +1,11 @@
 use sdl2::rect::Point;
 use sdl2::rect::Rect;
 use sdl2::ttf::Font;
-use sdl2::ttf::FontResult;
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::FullscreenType;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::mpsc;
 use std::thread;
 
@@ -21,6 +19,7 @@ use crate::rect_utils::ViewRect;
 use crate::processing_order::*;
 use crate::settings::*;
 use crate::utils::*;
+use crate::sdl_utils::*;
 
 /// State machine for the image processing. It is wrapped in an enum because we
 /// store all the files as a state machine in a vector collection.
@@ -217,40 +216,6 @@ impl ImgItem {
     }
 }
 
-/// Attempts to move src_1 to dst_1, then src_2 to dst_2.
-///
-/// If the move fails, the function fail, attempts to revert back to the state
-/// before the call. i.e. if it fails on the first move, nothing is done, if
-/// it fails on the second move, the function tries to move back dst_1 to src_1
-/// before exiting.
-fn attempt_double_move(
-    src_1: &Path,
-    dst_1: &Path,
-    src_2: &Path,
-    dst_2: &Path,
-) -> Result<(), String> {
-    move_file(src_1, dst_1).map_err(|e| format!("Unable to move file : {}", e))?;
-
-    // Move trash back to original
-    if let Err(e) = move_file(src_2, dst_2) {
-        println!(
-            "Unable to move {}, attempting to revert. Err: {}",
-            src_2.display(),
-            e
-        );
-        move_file(dst_1, src_1).map_err(|e| {
-            format!(
-                "Unable to revert move file {} back to {}. Err: {}",
-                dst_1.display(),
-                src_1.display(),
-                e
-            )
-        })?;
-    }
-
-    Ok(())
-}
-
 /// Given the source path, the processing_directory path, and the command
 /// index, generates the temporary output file path.
 ///
@@ -290,6 +255,7 @@ fn process_tmp_path(
     Ok(output_path)
 }
 
+
 /// Given the source path, the and the trash directory path, generates the
 /// deleted file path.
 ///
@@ -319,36 +285,6 @@ fn deleted_file_path(source: &Path, trash_directory: &Path) -> Result<PathBuf, S
     Ok(output_path)
 }
 
-/// Converts a Command instance to a String, as the command would be typed.
-fn command_to_string(command: &Command) -> String {
-    let mut cmd_string = String::new();
-    cmd_string += command.get_program().to_str().unwrap();
-    for a in command.get_args() {
-        cmd_string += " ";
-        cmd_string += a.to_str().unwrap();
-    }
-
-    cmd_string
-}
-
-/// Executes a &str as a command. Replacing %i with input_file and %o with
-/// output_file.
-fn execute_command_str(command: &str, input_file: &Path, output_file: &Path) {
-    let split = command.split(' ').collect::<Vec<&str>>();
-    if !split.is_empty() {
-        let mut cmd = Command::new(split[0]);
-        for item in split[1..].iter() {
-            if *item == "%i" {
-                cmd.arg(input_file);
-            } else if *item == "%o" {
-                cmd.arg(output_file);
-            } else {
-                cmd.arg(item);
-            }
-        }
-        cmd.status().expect("Failed to execute command");
-    }
-}
 
 /// This struct is used to mannage the program. Key presses will trigger methods
 /// attached to it. There should only be one instance of this.
@@ -366,6 +302,7 @@ pub struct App<'a> {
     source_texture: Texture<'a>,
     processed_texture: Texture<'a>,
     ttf_context: &'a Sdl2TtfContext,
+    font: Font<'a, 'a>,
 }
 
 impl<'a> App<'a> {
@@ -387,6 +324,11 @@ impl<'a> App<'a> {
                    the new extension.
         */
         let cmds = read_file_lines(&settings.cmds_file).map_err(|e| e.to_string())?;
+        //
+        // Load font
+        let font_path = expand_tilde("~/bimgo/fonts/FiraMono-Medium.ttf")
+                .map_err(|e| format!("{e}"))?;
+        let font = ttf_context.load_font(font_path, 30)?;
 
         let source_texture = texture_creator
             .create_texture_static(None, 1, 1)
@@ -415,6 +357,7 @@ impl<'a> App<'a> {
             source_texture,
             processed_texture,
             ttf_context,
+            font,
         };
 
         app.update_views()?;
@@ -529,11 +472,6 @@ impl<'a> App<'a> {
                                source_path.display(), 
                                human_readable_size(source_md.len()));
 
-        // Load font
-        let font_path = expand_tilde("~/bimgo/fonts/FiraMono-Medium.ttf")
-                .map_err(|e| format!("{e}"))?;
-        let font = self.ttf_context.load_font(font_path, 30)?;
-
         // Draw at correct position
         let (w, h) = self.window_size();
 
@@ -544,7 +482,7 @@ impl<'a> App<'a> {
             SourcePosition::Right   => (Point::new(w as i32 / 2, h as i32), Anchor::BottomLeft),
         };
 
-        let txt = TextBox::new(&info_str, &font, self.texture_creator)
+        let txt = TextBox::new(&info_str, &self.font, self.texture_creator)
             .wrapped(self.source_view.clip_rect.width());
 
         txt.draw(self.canvas, position, anchor)?;
@@ -569,11 +507,6 @@ impl<'a> App<'a> {
                                processed_path.display(), 
                                human_readable_size(processed_md.len()));
 
-        // Load font
-        let font_path = expand_tilde("~/bimgo/fonts/FiraMono-Medium.ttf")
-                .map_err(|e| format!("{e}"))?;
-        let font = self.ttf_context.load_font(font_path, 30)?;
-
         // Draw at correct position
         let (w, h) = self.window_size();
 
@@ -584,7 +517,7 @@ impl<'a> App<'a> {
             SourcePosition::Left    => (Point::new(w as i32 / 2, h as i32), Anchor::BottomLeft),
         };
 
-        let txt = TextBox::new(&info_str, &font, self.texture_creator)
+        let txt = TextBox::new(&info_str, &self.font, self.texture_creator)
             .wrapped(self.processed_view.clip_rect.width());
 
         txt.draw(self.canvas, position, anchor)?;
@@ -997,131 +930,3 @@ impl<'a> App<'a> {
     }
 }
 
-
-/// Helper function to generate a text texture 
-fn generate_text<T, U>(
-    txt: &str,
-    texture_creator: &TextureCreator<U>,
-    canvas: &mut Canvas<T>,
-    font: Font,
-) -> Result<(), String>
-where
-    T: sdl2::render::RenderTarget,
-{
-    let s_text = font
-        .render(txt)
-        //.solid(Color::RGB(255,255,255))
-        .blended(Color::RGB(255, 255, 255))
-        //.shaded(Color::RGB(255,255,255), Color::RGB(0,128,128))
-        .map_err(|e| format!("{e}"))?;
-
-    let src_rect = s_text.rect();
-
-    let t_text = s_text
-        .as_texture(texture_creator)
-        .map_err(|e| format!("{e}"))?;
-
-    // let dst_rect = src_rect;
-
-    let dst_rect = Rect::new(50, 0, src_rect.width(), src_rect.height());
-
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    canvas.fill_rect(dst_rect)?;
-    canvas.copy(&t_text, Some(src_rect), Some(dst_rect))?;
-
-    Ok(())
-}
-
-
-#[allow(unused)]
-enum Anchor{
-    TopLeft,
-    Top,
-    TopRight,
-
-    Left,
-    Center,
-    Right,
-
-    BottomLeft,
-    Bottom,
-    BottomRight,
-}
-
-/// Helper struct to generate a "textbox"
-struct TextBox<'a, T> {
-    texture_creator: &'a TextureCreator<T>,
-    font: &'a Font<'a, 'a>,
-    txt: &'a str,
-    width: Option<u32>,
-}
-
-impl<'a, T> TextBox<'a, T>{
-    fn new(txt: &'a str, font: &'a Font, texture_creator: &'a TextureCreator<T>) -> TextBox<'a, T> {
-        TextBox{
-            texture_creator,
-            font,
-            txt,
-            width: None,
-        }
-    }
-
-    fn wrapped(mut self, width: u32) -> Self {
-        self.width = Some(width);
-        self
-    }
-
-    fn draw<C>(&self, canvas: &mut Canvas<C>, position: Point, anchor: Anchor) -> Result<(), String>
-    where
-        C: sdl2::render::RenderTarget,
-    {
-        let s_text = self.font
-            .render(self.txt);
-            //.solid(Color::RGB(255,255,255))
-            //.blended(Color::RGB(255, 255, 255))
-            //.shaded(Color::RGB(255,255,255), Color::RGB(0,128,128))
-            //.map_err(|e| format!("{e}"))?;
-
-        let s_text = match self.width {
-            Some(width) => s_text.blended_wrapped(Color::RGB(255,255,255), width),
-            None => s_text.blended(Color::RGB(255,255,255)),
-        }.map_err(|e| format!("{e}"))?;
-
-        
-
-        let src_rect = s_text.rect();
-
-        let t_text = s_text
-            .as_texture(self.texture_creator)
-            .map_err(|e| format!("{e}"))?;
-
-        let (w, h) = src_rect.size();
-
-        let position = match anchor {
-            Anchor::TopLeft     => position,
-            Anchor::Top         => position - Point::new(w as i32 / 2, 0),
-            Anchor::TopRight    => position - Point::new(w as i32, 0),
-
-            Anchor::Left        => position - Point::new(0, h as i32 / 2),
-            Anchor::Center      => position - Point::new(w as i32 / 2, h as i32 / 2),
-            Anchor::Right       => position - Point::new(w as i32, h as i32 / 2),
-
-            Anchor::BottomLeft  => position - Point::new(0, h as i32),
-            Anchor::Bottom      => position - Point::new(w as i32 / 2, h as i32),
-            Anchor::BottomRight => position - Point::new(w as i32, h as i32),
-        };
-        let dst_rect = Rect::new(position.x, position.y, src_rect.width(), src_rect.height());
-
-
-        let bg_rect = match self.width {
-            Some(width) => Rect::new(position.x, position.y, width, src_rect.height()),
-            None        => Rect::new(position.x, position.y, src_rect.width(), src_rect.height()),
-        };
-
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rect(bg_rect)?;
-        canvas.copy(&t_text, Some(src_rect), Some(dst_rect))?;
-
-        Ok(())
-    }
-}

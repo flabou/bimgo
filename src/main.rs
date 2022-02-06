@@ -208,13 +208,13 @@ mod application;
 mod settings;
 mod processing_order;
 mod utils;
+mod sdl_utils;
 
 use std::path::PathBuf;
 
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::image::InitFlag;
-use sdl2::pixels::Color;
 
 use itertools::Itertools;
 
@@ -236,8 +236,6 @@ fn main() -> Result<(), String> {
     let video_subsystem = sdl_context.video()?;
     let _image_context = sdl2::image::init(InitFlag::PNG | InitFlag::JPG)?;
     let ttf_context = sdl2::ttf::init().map_err(|e| format!("{e}"))?;
-    
-    
 
 
     // Create a window.
