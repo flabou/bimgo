@@ -209,6 +209,7 @@ mod settings;
 mod processing_order;
 mod utils;
 mod sdl_utils;
+mod img;
 
 use std::path::PathBuf;
 
