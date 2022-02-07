@@ -465,7 +465,7 @@ impl<'a> App<'a> {
         ) {
             if self.imgs[i].processed[c].is_some() {
                 let mut p = self.imgs[i].processed[c].take().unwrap();
-                if p.state == ProcessingState::NotProcessed {
+                if !p.is_processed(){
                     let (tx, rx) = mpsc::channel();
                     self.rxs.push(rx);
                     let source_path = self.imgs[i].source.clone();
@@ -581,6 +581,12 @@ impl<'a> App<'a> {
         Ok(())
     }
 
+
+    /// Switch processed pane image to image processed with next command in 
+    /// the list
+    ///
+    /// If we reached the end of the list, the function does nothing and returns 
+    /// Ok(())
     pub fn next_cmd(&mut self) -> Result<(), String> {
         if self.cmd_index + 1 < self.cmds.len() {
             self.cmd_index += 1;
@@ -591,6 +597,12 @@ impl<'a> App<'a> {
         Ok(())
     }
 
+
+    /// Switch processed pane image to image processed with previous command in 
+    /// the list
+    ///
+    /// If we reached the begining of the list, the function does nothing and 
+    /// returns Ok(())
     pub fn prev_cmd(&mut self) -> Result<(), String> {
         if self.cmd_index > 0 {
             self.cmd_index -= 1;
@@ -616,6 +628,8 @@ impl<'a> App<'a> {
         Ok(())
     }
 
+
+    /// Undo the selection/validation of currently selected image
     pub fn undo_current(&mut self) -> Result<(), String> {
         let img = &mut self.imgs[self.index];
 
@@ -630,6 +644,8 @@ impl<'a> App<'a> {
         Ok(())
     }
 
+
+    /// Switches the application between fullscreen and normal
     pub fn toggle_fullscreen(&mut self) -> Result<(), String> {
         let window = self.canvas.window_mut();
 
@@ -643,7 +659,8 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    /// This function must be ran in the main loop, it handles processing
+
+    /// Function to be ran in the main loop, it handles processing
     /// the images through multi threading.
     pub fn run(&mut self) -> Result<(), String> {
         let mut update_image = false;

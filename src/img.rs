@@ -4,75 +4,58 @@ use std::path::PathBuf;
 use crate::utils::{attempt_double_move, execute_command_str};
 use crate::settings::AppSettings;
 
-/// State machine for the image processing. It is wrapped in an enum because we
-/// store all the files as a state machine in a vector collection.
-#[derive(PartialEq, Clone, Debug)]
-pub enum ProcessingState {
-    NotProcessed,
-    Processed,
-    Failed,
-    Validated,
-}
-
-impl Default for ProcessingState {
-    fn default() -> Self {
-        Self::NotProcessed
-    }
-}
 
 #[derive(Clone, Default, Debug)]
 pub struct ProcessItem {
     pub tmp_path: Option<PathBuf>,
     pub processed_path: Option<PathBuf>,
-    pub state: ProcessingState,
+    processing_failed: bool,
 }
 
 impl ProcessItem {
-    pub fn process(&mut self, source: PathBuf, output_dir: PathBuf, cmd: String, cmd_index: usize) {
-        // Return early if wrong state
-        if self.state != ProcessingState::NotProcessed {
-            return;
-        }
 
-        let tmp_filepath = process_tmp_path(&source, &output_dir, cmd_index);
-
-        if let Err(e) = tmp_filepath {
-            println!("Failed to process filepath {}", e);
-            self.state = ProcessingState::Failed;
-            return;
-        }
-
-        let tmp_filepath = tmp_filepath.unwrap();
+    /// Attempt to process the file at provided source path, with provided cmd, 
+    /// and place it in provided output directory.
+    ///
+    /// If this function is called more than once, it will redo the processing.
+    /// Unlike ProcessItem::process(...) which will skip if file has already
+    /// been processed.
+    fn attempt_process(&mut self, source: PathBuf, output_dir: PathBuf, cmd: String, cmd_index: usize) -> Result<(), String>{
+        let tmp_filepath = process_tmp_path(&source, &output_dir, cmd_index)?;
 
         execute_command_str(&cmd, &source, &tmp_filepath);
 
-        let file_md = fs::metadata(&tmp_filepath);
+        let file_md = fs::metadata(&tmp_filepath)
+            .map_err(|e| format!("Couldn't open {}: {e}", tmp_filepath.display()))?;
 
-        match file_md {
-            Ok(file_md) => {
-                if file_md.len() > 0 {
-                    self.tmp_path = Some(tmp_filepath.to_path_buf());
-                    self.state = ProcessingState::Processed;
-                } else {
-                    println!(
-                        "Could not read output file {}, file is empty",
-                        tmp_filepath.display()
-                    );
-                    self.state = ProcessingState::Failed;
-                }
-            }
-            Err(e) => {
-                println!(
-                    "Could not open file {}, maybe file doesn't exist. Error: {}",
-                    tmp_filepath.display(),
-                    e
-                );
-                self.state = ProcessingState::Failed;
-            }
+        (file_md.len() > 0)
+            .then(|| ())
+            .ok_or_else(|| format!("{} is empty", tmp_filepath.display()))?;
+        
+        self.tmp_path = Some(tmp_filepath);
+
+        Ok(())
+    }
+
+
+    /// Process the file at provided source path, with provided cmd, 
+    /// and place it in provided output directory.
+    ///
+    /// The function can always be called, if the processing has already been 
+    /// done for this instance.
+    pub fn process(&mut self, source: PathBuf, output_dir: PathBuf, cmd: String, cmd_index: usize){
+        // Return early if already processed, or processing failed.
+        if self.is_processed() || self.processing_failed {
+            return;
+        }
+
+        if let Err(e) = self.attempt_process(source, output_dir, cmd, cmd_index) {
+            self.processing_failed = true;
+            println!("Processing failed: {e}");
         }
     }
 
-    fn is_processed(&self) -> bool {
+    pub fn is_processed(&self) -> bool {
         self.tmp_path.is_some()
     }
 
@@ -83,7 +66,7 @@ impl ProcessItem {
 
 /// Container for an image and its processed variants.
 ///
-/// original        is the original path for the file provided by user.
+/// source          is the original path for the file provided by user.
 /// deleted         is the original file location after it has been moved
 ///                 if the user validated one of the processed variant.
 /// processed       is a container of all the variants processed, or to be
