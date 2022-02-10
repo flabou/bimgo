@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -244,26 +245,30 @@ fn process_tmp_path(
 fn deleted_file_path(source: &Path, trash_directory: &Path) -> Result<PathBuf, String> {
     check_is_existing_directory(trash_directory)?;
 
-    let dt = format!("_{}", Utc::now().format("%y-%m-%d_%Hh%Mm%Ss"));
-
     let mut output_path = trash_directory.to_path_buf();
 
     let extension = source.extension();
 
-    let mut filename = source
-        .file_stem()
-        .ok_or_else(|| "Missing file name".to_string())?
-        .to_os_string();
+    // let mut filename = source
+    //     .file_stem()
+    //     .ok_or_else(|| "Missing file name".to_string())?
+    //     .to_os_string();
+    //             
+    // let dt = format!("_{}", Utc::now().format("%y-%m-%d_%Hh%Mm%Ss"));
+    //
+    // filename.push(dt);
+    // 
+    // if let Some(extension) = extension {
+    //     filename.push(".");
+    //     filename.push(extension);
+    // }
 
-    filename.push(dt);
-
-    println!("output_path: {}", output_path.display());
-
-    if let Some(extension) = extension {
-        filename.push(".");
-        filename.push(extension);
-    }
-
+    // FIXME: It doesn't seem ideal to use to_string_lossy, what could be a way
+    // to avoid that?
+    let filename: OsString = source.to_string_lossy()
+        .replace("%","%%")
+        .replace("/","%")
+        .into();
 
     output_path.push(filename);
     Ok(output_path)
