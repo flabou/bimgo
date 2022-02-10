@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use crate::utils::{attempt_double_move, execute_command_str};
+use crate::utils::{attempt_double_move, execute_command_str, check_is_existing_directory};
 use crate::settings::AppSettings;
+use chrono::{DateTime, Utc};
 
 
 #[derive(Clone, Default, Debug)]
@@ -90,8 +91,21 @@ pub struct ImgItem {
 }
 
 impl ImgItem {
-    pub fn new(source: &Path, len: usize) -> ImgItem {
-        let processed = (0..len).map(|_| Some(ProcessItem::default())).collect();
+
+    /// Creates an instance of img, with the provided source path of the image
+    /// to process
+    ///
+    /// The instance will contain an option for the deleted path set to None,
+    /// to store the new path of the image when it will be moved.
+    /// It will also contain a vector of options of size cmds_len for every
+    /// processed variants (one for every command provided by user)
+    ///
+    /// ProcessItem are options, so that they can be sent to other threads with
+    /// Option::take (leaving None in place).
+    pub fn new(source: &Path, cmds_len: usize) -> ImgItem {
+        let processed = (0..cmds_len)
+            .map(|_| Some(ProcessItem::default()))
+            .collect();
 
         ImgItem {
             source: source.to_path_buf(),
@@ -100,6 +114,11 @@ impl ImgItem {
         }
     }
 
+    /// Validates the selected variant by moving it to the source directory
+    ///
+    /// To maximze safety, the original file is first moved to the trash
+    /// folder, then the processed file is moved to the source_dir with its
+    /// final filename.
     pub fn validate(&mut self, cmd_index: usize, settings: &AppSettings) -> Result<(), String> {
         let p = self.processed[cmd_index]
             .as_mut()
@@ -166,10 +185,7 @@ impl ImgItem {
     /// Retrieves an option on a reference on the processed instance that was
     /// validated.
     pub fn get_validated(&self) -> Option<&ProcessItem> {
-        let v = self.processed.iter().flatten().find(|&p| p.is_validated());
-
-        println!("validated instance: {v:?}");
-        v
+       self.processed.iter().flatten().find(|&p| p.is_validated())
     }
 
     /// Retrieves an option on a mutable reference on the processed instance that
@@ -181,6 +197,7 @@ impl ImgItem {
             .find(|p| p.is_validated())
     }
 }
+
 
 /// Given the source path, the processing_directory path, and the command
 /// index, generates the temporary output file path.
@@ -194,12 +211,7 @@ fn process_tmp_path(
     processing_directory: &Path,
     i: usize,
 ) -> Result<PathBuf, String> {
-    if !processing_directory.exists() {
-        return Err("Provided directory does not exist".to_string());
-    }
-    if !processing_directory.is_dir() {
-        return Err("Provided directory is not a directory".to_string());
-    }
+    check_is_existing_directory(processing_directory)?;
 
     let suffix = format!("_processed_{}", i);
     let extension = source.extension();
@@ -207,7 +219,7 @@ fn process_tmp_path(
     let mut output_path = processing_directory.to_path_buf();
     let mut filename = source
         .file_stem()
-        .ok_or_else(|| "Missing file name".to_string())?
+        .ok_or_else(|| format!("No file name in {}", source.display()))?
         .to_os_string();
 
     filename.push(suffix);
@@ -230,24 +242,30 @@ fn process_tmp_path(
 /// - The filename will be the source filename, with _processed_i appended before
 ///   the extension, where `i` is the index of the command.
 fn deleted_file_path(source: &Path, trash_directory: &Path) -> Result<PathBuf, String> {
-    if !trash_directory.exists() {
-        return Err(format!(
-            "Directory {} does not exist",
-            trash_directory.display()
-        ));
-    }
-    if !trash_directory.is_dir() {
-        return Err(format!("{} is not a directory", trash_directory.display()));
-    }
+    check_is_existing_directory(trash_directory)?;
+
+    let dt = format!("_{}", Utc::now().format("%y-%m-%d_%Hh%Mm%Ss"));
 
     let mut output_path = trash_directory.to_path_buf();
-    let filename = source
-        .file_name()
+
+    let extension = source.extension();
+
+    let mut filename = source
+        .file_stem()
         .ok_or_else(|| "Missing file name".to_string())?
         .to_os_string();
 
-    output_path.push(filename);
+    filename.push(dt);
 
+    println!("output_path: {}", output_path.display());
+
+    if let Some(extension) = extension {
+        filename.push(".");
+        filename.push(extension);
+    }
+
+
+    output_path.push(filename);
     Ok(output_path)
 }
 

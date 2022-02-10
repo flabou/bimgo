@@ -12,6 +12,7 @@ serde = { version = "1.0.135", features = ["derive"] }
 toml = "0.5.8"
 itertools = "0.10.3"
 dirs = "4.0.0"
+chrono = "0.4.19"
  
 [dependencies.sdl2]
 version = "0.35.1"

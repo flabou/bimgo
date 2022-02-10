@@ -6,6 +6,36 @@ use std::os::linux::fs::MetadataExt;
 use std::io::{self, BufRead, BufReader};
 use std::process::Command;
 
+/// Simple helper function to verify that path is an existing file or return
+/// an error.
+pub fn check_is_existing_file(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("File {} does not exist", path.display()));
+    }
+
+    if !path.is_file() {
+        return Err(format!("{} is not a file", path.display()));
+    }
+
+    Ok(())
+}
+
+
+/// Simple helper function to verify that path is an existing directory or
+/// return an error.
+pub fn check_is_existing_directory(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("Directory {} does not exist", path.display()));
+    }
+
+    if !path.is_dir() {
+        return Err(format!("{} is not a directory", path.display()));
+    }
+
+    Ok(())
+}
+
+
 /// Helper function to move a file, wether it is on the same device  or not.
 /// 
 /// src_file_path must be an exising file. 
